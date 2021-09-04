@@ -1,0 +1,1 @@
+This directory represents some project. This folder supposed to be in PYTHONPATH, so article package is importable.
