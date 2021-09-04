@@ -69,7 +69,32 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
         self.session._setupstate.teardown_all()
         self.request._arg2index = {}
         self.request._fixture_defs = {}
+
+    def remove_custom_fixtures(self):
         self.request._arg2fixturedefs = self.test._fixtureinfo.name2fixturedefs.copy()
+
+    def reset_fixture(self, fixture):
+        fixture_cleanups = self.session._setupstate._finalizers[self.test]
+
+        def get_fixture_name_from_cleanup_method(method):
+            try:
+                return method.func.__self__.argname
+            except KeyError:
+                return object()
+
+        fixture_names = list(map(get_fixture_name_from_cleanup_method, fixture_cleanups))
+
+        try:
+            index = fixture_names.index(fixture)
+        except KeyError:
+            raise KeyError(f"Can't find {fixture} in {fixture_names}")
+
+        fixture_cleanups = list(zip(fixture_names[index:], fixture_cleanups[index:]))
+        while fixture_cleanups:
+            name, finish = fixture_cleanups.pop()
+            self.request._arg2index.pop(name, None)
+            self.request._fixture_defs.pop(name, None)
+            finish()
 
     def getfixturevalue(self, fixture):
         if not self.can_be_used:
@@ -82,24 +107,6 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
         if fixture in self.request._fixture_defs:
             raise ValueError("Fixture is already set.")
         add_fixture_to_test(fixture, value, self.request)
-
-    def setfixturevalue(self, fixture, value):
-        if not self.can_be_used:
-            raise ValueError("Can't set fixture value. Other test is active.")
-        if fixture in self.request._fixture_defs:
-            raise ValueError("Fixture is already set.")
-        fixturedef = self.request._getnextfixturedef(fixture)
-        try:
-            param = self.request._pyfuncitem.callspec.getparam(fixture)
-        except (AttributeError, ValueError):
-            param = 0
-        fixturedef.cached_result = (value, param, None)
-        self.request._fixture_defs[fixture] = fixturedef
-
-        def finish():
-            fixturedef.cached_result = None
-
-        self.session._setupstate.addfinalizer(finish, self.test)
 
     def get_current_fixture_values(self):
         fixture_values = {}
