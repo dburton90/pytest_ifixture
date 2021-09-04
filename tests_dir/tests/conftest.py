@@ -23,6 +23,7 @@ def article(db, request):
     log_setup(article, db, request)
     request.addfinalizer(lambda: log_teardown(article, title, db, request))
     request.addfinalizer(lambda: log_teardown(article, title, db, request))
+    raise Exception('error')
     return article.__name__ + title
 
 

@@ -10,5 +10,5 @@ def article(db):
 
 
 def test_articles(article, request):
-    log_setup(article)
     request.addfinalizer(lambda:log_teardown(article))
+    log_setup(article)

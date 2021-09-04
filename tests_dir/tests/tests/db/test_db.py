@@ -7,6 +7,7 @@ def db_name():
     log_setup(db_name)
     yield db_name.__name__ + '-2'
     log_teardown(db_name)
+    raise Exception('dadsds')
 
 
 @pytest.fixture
@@ -14,6 +15,7 @@ def article(article, db):
     log_setup(article, db)
     yield article + '-overridden-addition'
     log_teardown(article, db)
+    raise Exception('article')
 
 
 def test_db(article, request):

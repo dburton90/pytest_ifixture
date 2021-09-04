@@ -1,5 +1,6 @@
 import inspect
 import sys
+import traceback
 from collections import namedtuple
 from typing import Union
 
@@ -66,9 +67,9 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
         return self.request.session
 
     def reset(self):
-        self.session._setupstate.teardown_all()
         self.request._arg2index = {}
         self.request._fixture_defs = {}
+        self.session._setupstate.teardown_all()
 
     def remove_custom_fixtures(self):
         self.request._arg2fixturedefs = self.test._fixtureinfo.name2fixturedefs.copy()
@@ -90,16 +91,29 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
             raise KeyError(f"Can't find {fixture} in {fixture_names}")
 
         fixture_cleanups = list(zip(fixture_names[index:], fixture_cleanups[index:]))
+        exceptions = []
         while fixture_cleanups:
             name, finish = fixture_cleanups.pop()
             self.request._arg2index.pop(name, None)
             self.request._fixture_defs.pop(name, None)
-            finish()
+            try:
+                finish()
+            except Exception:
+                exceptions.append((name, sys.exc_info()))
+
+        for e in exceptions:
+            name, exc = e
+            print(f"ERROR IN TEARDOWN FIXTURE [{name}]:")
+            traceback.print_exception(*exc)
 
     def getfixturevalue(self, fixture):
         if not self.can_be_used:
             raise ValueError("Can't get fixture value. Other test is active.")
-        return self.request.getfixturevalue(fixture)
+        try:
+            return self.request.getfixturevalue(fixture)
+        except Exception:
+            traceback.print_exception(*sys.exc_info())
+            self.reset_fixture(fixture)
 
     def setfixture(self, fixture, value):
         if not self.can_be_used:
