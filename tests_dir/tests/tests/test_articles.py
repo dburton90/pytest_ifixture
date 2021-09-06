@@ -9,6 +9,11 @@ def article(db):
     log_teardown(article, db)
 
 
-def test_articles(article, request):
+@pytest.fixture
+def author():
+    return 'adam'
+
+
+def test_articles(article, request, author):
     request.addfinalizer(lambda:log_teardown(article))
     log_setup(article)
