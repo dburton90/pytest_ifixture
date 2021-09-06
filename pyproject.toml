@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "pytest_ifixture"
 version = "0.1.0"
-description = "Let you resolve pytest fixtures interactively in console or in script without pytest running."
+description = "Tools for working with fixtures from pytest in interactive console or scripts."
 authors = ["Daniel Barton <daniel.barton@seznam.cz>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "3.6"
-pytest = "^6.2.5"
+python = "^3.6"
+pytest = ">=4.2.1"
 
 
 [build-system]
