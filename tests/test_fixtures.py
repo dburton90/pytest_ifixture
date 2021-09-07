@@ -11,7 +11,7 @@ def test_get_fixture(base_session, article_logger):
 def test_teardown(base_session, article_logger):
     test = base_session.get_test_by_name('test_articles')
     test.getfixturevalue('db_name')
-    test.reset()
+    test.teardown()
 
     assert article_logger == ['SETUP: conftest.db_name', 'TEARDOWN: conftest.db_name']
 
@@ -19,7 +19,7 @@ def test_teardown(base_session, article_logger):
 def test_get_fixture_repeatedly(base_session, article_logger):
     test = base_session.get_test_by_name('test_articles')
     test.getfixturevalue('db_name')
-    test.reset()
+    test.teardown()
     test.getfixturevalue('db_name')
 
     assert article_logger == [
@@ -46,7 +46,7 @@ def test_get_fixture_depends_on_each_other(base_session, article_logger):
 def test_teardown_fixture_depends_on_each_other(base_session, article_logger):
     test = base_session.get_test_by_name('test_db[cats]')
     test.getfixturevalue('article_new')
-    test.reset()
+    test.teardown()
     assert article_logger == [
         'SETUP: test_db.db_name',
         'SETUP: conftest.db db_name-2',
@@ -123,7 +123,7 @@ def test_set_fixture_value_by_fixture(base_session):
 
     assert teardown_f is False
 
-    test.reset()
+    test.teardown()
 
     assert teardown_f is True
 
@@ -146,7 +146,7 @@ def test_set_non_related_fixture(base_session):
 
     assert teardown_f is False
 
-    test.reset()
+    test.teardown()
 
     assert teardown_f is True
 
@@ -158,7 +158,7 @@ def test_values(base_session):
         'db_name': 'db_name',
         'db': 'db(db_name)'
     }
-    test.reset()
+    test.teardown()
     assert test.fixture_values == {}
 
 

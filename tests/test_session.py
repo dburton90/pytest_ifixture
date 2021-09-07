@@ -53,7 +53,7 @@ def test_can_be_used_and_active(base_session):
     assert not db_dogs.can_be_used
     assert not db_dogs.active
 
-    article.reset()
+    article.teardown()
 
     assert all([t.can_be_used for t in base_session.tests])
     assert not any([t.active for t in base_session.tests])

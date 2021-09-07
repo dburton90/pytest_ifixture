@@ -110,6 +110,12 @@ class PytestSession(namedtuple('PytestSession', 'session, config, cleanup_sessio
         """ Teardown whole session."""
         self.session._setupstate.teardown_all()
 
+    def __repr__(self):
+        return f"<PytestSession {self.tests!r}>"
+
+    def __str__(self):
+        return "\n\n".join(map(str, self.tests))
+
 
 class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
     """
@@ -120,16 +126,14 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
     @property
     def fixtures(self):
         """ All fixture names. """
-        return self.test.fixturenames
+        return list(set((*self.test.fixturenames, *self.request._arg2fixturedefs)))
 
     @property
     def fixture_values(self):
         """ Dict with resolved fixtures mapped to their values. """
         fixture_values = {}
-        for f in self.fixtures:
-            if f in self.request._fixture_defs:
-                fdef = self.request._fixture_defs[f]
-                fixture_values[f] = fdef.cached_result[0]
+        for f, fdef in self.request._fixture_defs.items():
+            fixture_values[f] = fdef.cached_result[0]
 
         return fixture_values
 
@@ -164,9 +168,10 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
         """ Pytest session."""
         return self.request.session
 
-    def reset(self, remove_custom_fixtures=False):
+    def teardown(self, remove_custom_fixtures=False):
         """
-        Reset (teardown) all fixtures. Optionally remove all fixtures added with setfixture method.
+        Reset (teardown) all fixtures. 
+        Optionally remove all fixtures added with setfixture method.
         """
         self.request._arg2index = {}
         self.request._fixture_defs = {}
@@ -241,9 +246,35 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
         if fixture in self.request._fixture_defs:
             raise ValueError("Fixture is already set.")
         add_fixture_to_test(fixture, value, self.request)
+    
+    def get_fixture_code(self, fixture, all_defs=False):
+        """
+        Return code of the fixture as a string.
+        Useful in IPython:
+            [1] function_code = test.get_fixture_code('fixture_name')
+            [2] %edit function_code
+        
+        :param fixture: name of the fixture
+        :param all_defs: (default False) return only last fixture value
+            - if all_defs=True, return list of all Fixture codes (even not used fixtures)
+        """
+        fixturedefs = self.request._arg2fixturedefs.get(fixture, None)
+        if all_defs:
+            return [inspect.getsource(fd.func) for fd in fixturedefs]
+        else:
+            return inspect.getsource(fixturedefs[-1].func)
+    
+    def get_test_code(self):
+        """
+        Return code of the test as a string.
+        Useful in IPython:
+            [1] function_code = test.get_fixture_code('fixture_name')
+            [2] %edit function_code
+        """
+        return inspect.getsource(self.test.function)
 
     def print_fixtures(self, fixtures=None):
-        """ print all fixtures in this test. """
+        """ print all fixtures in this test with their code """
         if fixtures:
             if isinstance(fixtures, str):
                 fixtures = [fixtures]
@@ -251,7 +282,7 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
             fixtures = self.fixtures
 
         for f in fixtures:
-            fixturedefs = self.test._fixtureinfo.name2fixturedefs.get(f, None)
+            fixturedefs = self.request._arg2fixturedefs.get(f, None)
             if fixturedefs is None:
                 continue
             print(f)
@@ -275,17 +306,22 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
         elif not self.can_be_used:
             name += " (can't use - other test is active)"
 
-        fixturedefs = self.test._fixtureinfo.name2fixturedefs
+        fixturedefs = self.request._arg2fixturedefs
         NOT_FOUND = 'FIXTURE DEF NOT FOUND'
 
         fixtures = []
         for fname in self.fixtures:
             fd = fixturedefs.get(fname)
             if not fd:
+                if fname in self.request._fixture_defs:
+                    fname += ' *'
                 fixtures.append((fname, NOT_FOUND, NOT_FOUND))
             else:
                 for f in fd:
-                    fixtures.append((fname, str(f.argnames), getpath(f.func)))
+                    fd_name = fname
+                    if getattr(f, 'cached_result', None):
+                        fd_name += ' *'
+                    fixtures.append((fd_name, str(f.argnames), getpath(f.func)))
             
         fixture_names_len = max(*map(len, map(itemgetter(0), fixtures)))
         fixture_args_len = max(*map(len, map(itemgetter(1), fixtures)))
@@ -314,11 +350,13 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
             lines.append(get_fixture_line(fname, args, path))
             lines.append(line)
         
+        if self.request._fixture_defs:
+            lines.append('*) these fixtures are currently resolved resolved')
+        
         return '\n'.join(lines)
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and other.test == self.test and other.session is self.session
-
 
 
 def add_fixture_to_test(fixture_name, fixture, request):
