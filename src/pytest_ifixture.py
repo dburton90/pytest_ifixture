@@ -2,9 +2,11 @@ import inspect
 import sys
 import traceback
 from collections import namedtuple
+from operator import itemgetter
 
 import pytest
-from _pytest import config, main
+from _pytest import config, main, compat
+import py
 
 import atexit
 
@@ -254,7 +256,7 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
                 continue
             print(f)
             for fd in fixturedefs:
-                print(' ' * 2 + fd.baseid)
+                print(' ' * 2 + compat.getlocation(fd.func, py.path.local()))
                 try:
                     print(*map(lambda s: ' ' * 4 + s, inspect.getsource(fd.func).splitlines()), sep='\n')
                 except OSError:
@@ -265,10 +267,58 @@ class PytestTest(namedtuple('PytestTest', 'test, pytestsession')):
         return f"<PytestTest {self.test.name}{' (active)' if self.active else ''}>"
 
     def __str__(self):
-        return self.test.baseid
+        getpath = lambda func: compat.getlocation(func, py.path.local())
+        name = self.test.name
+        test_path = getpath(self.test.function)
+        if self.active:
+            name += ' (active)'
+        elif not self.can_be_used:
+            name += " (can't use - other test is active)"
+
+        fixturedefs = self.test._fixtureinfo.name2fixturedefs
+        NOT_FOUND = 'FIXTURE DEF NOT FOUND'
+
+        fixtures = []
+        for fname in self.fixtures:
+            fd = fixturedefs.get(fname)
+            if not fd:
+                fixtures.append((fname, NOT_FOUND, NOT_FOUND))
+            else:
+                for f in fd:
+                    fixtures.append((fname, str(f.argnames), getpath(f.func)))
+            
+        fixture_names_len = max(*map(len, map(itemgetter(0), fixtures)))
+        fixture_args_len = max(*map(len, map(itemgetter(1), fixtures)))
+        fixture_paths_len = max(*map(len, map(itemgetter(2), fixtures)))
+
+        line = '+-' + '-+-'.join(('-' * col_size for col_size in (fixture_names_len, fixture_args_len, fixture_paths_len))) + '-+'
+
+        def get_fixture_line(name, args, path):
+            cols = (
+                name.ljust(fixture_names_len),
+                args.ljust(fixture_args_len),
+                path.ljust(fixture_paths_len)
+            )
+            return f'| {" | ".join(cols)} |'
+        
+        title_size = max(len(line) - 4, len(test_path), len(name))
+
+        lines = [
+            '#' * (title_size + 4),
+            f'# {name.center(title_size)} #',
+            '#' * (title_size + 4),
+            f'| {getpath(self.test.function).center(title_size)} |',
+            line,
+        ]
+        for fname, args, path in fixtures:
+            lines.append(get_fixture_line(fname, args, path))
+            lines.append(line)
+        
+        return '\n'.join(lines)
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and other.test == self.test and other.session is self.session
+
 
 
 def add_fixture_to_test(fixture_name, fixture, request):
