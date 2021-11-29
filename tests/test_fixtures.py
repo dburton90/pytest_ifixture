@@ -8,6 +8,14 @@ def test_get_fixture(base_session, article_logger):
     assert article_logger == ['SETUP: conftest.db_name']
 
 
+def test_get_multiple_fixture(base_session, article_logger):
+    test = base_session.get_test_by_name('test_articles')
+    test.getfixturevalue('db_name')
+    test.getfixturevalue('author')
+
+    assert article_logger == ['SETUP: conftest.db_name', 'SETUP: test_articles.author']
+
+
 def test_teardown(base_session, article_logger):
     test = base_session.get_test_by_name('test_articles')
     test.getfixturevalue('db_name')

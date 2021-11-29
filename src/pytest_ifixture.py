@@ -104,7 +104,7 @@ class PytestSession(namedtuple('PytestSession', 'session, config, cleanup_sessio
         """ Return active test (test with at least resolved fixture). Return None if there is no active test."""
         finalizers = self.session._setupstate._finalizers
         if finalizers:
-            return PytestTest(list(finalizers.keys())[0], self)
+            return PytestTest(list(finalizers.values())[0][0].keywords['request']._pyfuncitem, self)
 
     def teardown(self):
         """ Teardown whole session."""
@@ -375,12 +375,12 @@ def add_fixture_to_test(fixture_name, fixture, request):
         fixture_function = lambda: fixture_value
 
     if hasattr(fixture_function, '_pytestfixturefunction'):
-        print('is fixture')
+        print('adding fixture (it is already fixture)')
         decorated_fixture = fixture_function
         fixture_function = decorated_fixture.__wrapped__
     else:
-        print('is not fixture')
-        decorated_fixture = pytest.fixture(fixture_function)
+        print('adding new created fixture')
+        decorated_fixture = pytest.fixture(scope='session')(fixture_function)
 
     marker = decorated_fixture._pytestfixturefunction
     fixture_def = FixtureDef(

@@ -11,6 +11,7 @@ def article(db):
 
 @pytest.fixture
 def author():
+    log_setup(author)
     return 'adam'
 
 
